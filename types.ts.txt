@@ -1,0 +1,32 @@
+export interface FormElement {
+  id: string
+  type: "text" | "email" | "number" | "dropdown" | "checkbox" | "radio" | "rating" | "date" | "paragraph" | "tel"
+  label: string
+  description?: string
+  required: boolean
+  placeholder?: string
+  options?: string[]
+  min?: number
+  max?: number
+  defaultValue?: string | number | boolean
+}
+
+export interface FormResponse {
+  id: string
+  timestamp: string
+  data: {
+    [key: string]: string | number | boolean
+  }
+  status?: "completed" | "partial" | "failed"
+  user?: string
+}
+
+export interface FormSettings {
+  requireLogin: boolean
+  limitResponses: boolean
+  maxResponses?: number
+  responseExpiration?: string
+  confirmationMessage: string
+  notifyOnSubmission?: boolean
+  notificationEmail?: string
+}

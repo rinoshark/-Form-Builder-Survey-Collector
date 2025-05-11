@@ -1,0 +1,143 @@
+"use client"
+
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import type { FormSettings } from "@/lib/types"
+import { Card, CardContent } from "@/components/ui/card"
+import { Switch } from "@/components/ui/switch"
+
+interface FormSettingsProps {
+  settings: FormSettings
+  onUpdateSettings: (settings: FormSettings) => void
+}
+
+export default function FormSettings({ settings, onUpdateSettings }: FormSettingsProps) {
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold">Form Settings</h2>
+
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Confirmation Message</Label>
+                <Textarea
+                  value={settings.confirmationMessage}
+                  onChange={(e) =>
+                    onUpdateSettings({
+                      ...settings,
+                      confirmationMessage: e.target.value,
+                    })
+                  }
+                  placeholder="Thank you for your submission!"
+                />
+                <p className="text-sm text-muted-foreground">
+                  This message will be shown to users after they submit the form.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="requireLogin">Require login to submit</Label>
+                  <p className="text-sm text-muted-foreground">Users must be logged in to submit the form</p>
+                </div>
+                <Switch
+                  id="requireLogin"
+                  checked={settings.requireLogin}
+                  onCheckedChange={(checked) =>
+                    onUpdateSettings({
+                      ...settings,
+                      requireLogin: checked,
+                    })
+                  }
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="limitResponses">Limit number of responses</Label>
+                  <p className="text-sm text-muted-foreground">Set a maximum number of responses for this form</p>
+                </div>
+                <Switch
+                  id="limitResponses"
+                  checked={settings.limitResponses}
+                  onCheckedChange={(checked) =>
+                    onUpdateSettings({
+                      ...settings,
+                      limitResponses: checked,
+                    })
+                  }
+                />
+              </div>
+
+              {settings.limitResponses && (
+                <div className="space-y-2">
+                  <Label>Maximum Responses</Label>
+                  <Input
+                    type="number"
+                    value={settings.maxResponses || ""}
+                    onChange={(e) =>
+                      onUpdateSettings({
+                        ...settings,
+                        maxResponses: Number.parseInt(e.target.value) || undefined,
+                      })
+                    }
+                    placeholder="Enter maximum number of responses"
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="notifyOnSubmission">Email notifications</Label>
+                  <p className="text-sm text-muted-foreground">Receive email notifications for new submissions</p>
+                </div>
+                <Switch
+                  id="notifyOnSubmission"
+                  checked={settings.notifyOnSubmission || false}
+                  onCheckedChange={(checked) =>
+                    onUpdateSettings({
+                      ...settings,
+                      notifyOnSubmission: checked,
+                    })
+                  }
+                />
+              </div>
+
+              {settings.notifyOnSubmission && (
+                <div className="space-y-2">
+                  <Label>Notification Email</Label>
+                  <Input
+                    type="email"
+                    value={settings.notificationEmail || ""}
+                    onChange={(e) =>
+                      onUpdateSettings({
+                        ...settings,
+                        notificationEmail: e.target.value,
+                      })
+                    }
+                    placeholder="Enter email address"
+                  />
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}

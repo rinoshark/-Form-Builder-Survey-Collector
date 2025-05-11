@@ -1,0 +1,652 @@
+"use client"
+
+import { useState, useRef, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import {
+  Plus,
+  Trash,
+  Check,
+  Copy,
+  Settings,
+  BarChart2,
+  Eye,
+  Code,
+  Download,
+  GripVertical,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react"
+import { nanoid } from "nanoid"
+import type { FormElement, FormResponse, FormSettings } from "@/lib/types"
+import ElementPalette from "@/components/element-palette"
+import FormPreview from "@/components/form-preview"
+import FormSettingsComponent from "@/components/form-settings"
+import ResponseStats from "@/components/response-stats"
+import ResponseTable from "@/components/response-table"
+
+export default function FormBuilder() {
+  const [formFields, setFormFields] = useState<FormElement[]>([])
+  const [activeTab, setActiveTab] = useState<"builder" | "preview" | "responses" | "settings">("builder")
+  const [formTitle, setFormTitle] = useState("Customer Feedback Form")
+  const [formDescription, setFormDescription] = useState("Help us improve our services by sharing your feedback")
+  const [responses, setResponses] = useState<FormResponse[]>([])
+  const [currentResponse, setCurrentResponse] = useState<{ [key: string]: string | number | boolean }>({})
+  const [isPublished, setIsPublished] = useState(false)
+  const [formUrl, setFormUrl] = useState("")
+  const [copied, setCopied] = useState(false)
+  const [settings, setSettings] = useState<FormSettings>({
+    requireLogin: false,
+    limitResponses: false,
+    confirmationMessage: "Thank you for your submission!",
+  })
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null)
+  const [draggedItem, setDraggedItem] = useState<number | null>(null)
+  const [submissionStatus, setSubmissionStatus] = useState<"idle" | "submitting" | "success" | "error">("idle")
+  const [submissionMessage, setSubmissionMessage] = useState("")
+  const [uploadProgress, setUploadProgress] = useState(0)
+
+  const formIdRef = useRef(nanoid(8))
+
+  // Generate sample responses for demo
+  useEffect(() => {
+    if (responses.length === 0 && formFields.length >= 3) {
+      const sampleResponses: FormResponse[] = [
+        {
+          id: nanoid(),
+          timestamp: new Date(Date.now() - 86400000).toISOString(),
+          data: {
+            [formFields[0].id]: "Great service!",
+            [formFields[1].id]: "4",
+            [formFields[2].id]: "Yes",
+          },
+          status: "completed",
+          user: "john.doe@example.com",
+        },
+        {
+          id: nanoid(),
+          timestamp: new Date(Date.now() - 172800000).toISOString(),
+          data: {
+            [formFields[0].id]: "Could be better",
+            [formFields[1].id]: "3",
+            [formFields[2].id]: "No",
+          },
+          status: "completed",
+          user: "jane.smith@example.com",
+        },
+      ]
+      setResponses(sampleResponses)
+    }
+  }, [formFields, responses.length])
+
+  const addField = (type: string) => {
+    const newField: FormElement = {
+      id: `field-${nanoid(8)}`,
+      type: type as any,
+      label: `${type.charAt(0).toUpperCase() + type.slice(1)} Question`,
+      description: "",
+      required: false,
+      placeholder: type === "paragraph" ? "Enter your response here..." : undefined,
+    }
+
+    if (type === "dropdown") {
+      newField.options = ["Option 1", "Option 2"]
+    }
+
+    if (type === "rating") {
+      newField.min = 1
+      newField.max = 5
+    }
+
+    setFormFields([...formFields, newField])
+    setActiveFieldId(newField.id)
+  }
+
+  const updateField = (id: string, updates: Partial<FormElement>) => {
+    setFormFields(formFields.map((field) => (field.id === id ? { ...field, ...updates } : field)))
+  }
+
+  const removeField = (id: string) => {
+    setFormFields(formFields.filter((field) => field.id !== id))
+    if (activeFieldId === id) {
+      setActiveFieldId(null)
+    }
+  }
+
+  // Native drag and drop implementation
+  const handleDragStart = (index: number) => {
+    setDraggedItem(index)
+  }
+
+  const handleDragOver = (index: number) => {
+    if (draggedItem === null) return
+
+    const newFields = [...formFields]
+    const [removed] = newFields.splice(draggedItem, 1)
+    newFields.splice(index, 0, removed)
+
+    setFormFields(newFields)
+    setDraggedItem(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedItem(null)
+  }
+
+  const publishForm = () => {
+    setIsPublished(true)
+    setFormUrl(`${window.location.origin}/form/${formIdRef.current}`)
+    setActiveTab("preview")
+  }
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(formUrl)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleResponseChange = (fieldId: string, value: string | number | boolean) => {
+    setCurrentResponse({
+      ...currentResponse,
+      [fieldId]: value,
+    })
+  }
+
+  const simulateUpload = () => {
+    setSubmissionStatus("submitting")
+    setUploadProgress(0)
+
+    const interval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval)
+          return 100
+        }
+        return prev + 10
+      })
+    }, 200)
+
+    setTimeout(() => {
+      clearInterval(interval)
+      setUploadProgress(100)
+
+      // Validate required fields
+      const missingFields = formFields
+        .filter((field) => field.required && !currentResponse[field.id])
+        .map((field) => field.label)
+
+      if (missingFields.length > 0) {
+        setSubmissionStatus("error")
+        setSubmissionMessage(`Please fill in required fields: ${missingFields.join(", ")}`)
+        return
+      }
+
+      // Simulate successful submission
+      const newResponse: FormResponse = {
+        id: nanoid(),
+        timestamp: new Date().toISOString(),
+        data: currentResponse,
+        status: "completed",
+        user: "current.user@example.com",
+      }
+
+      setResponses([...responses, newResponse])
+      setCurrentResponse({})
+      setSubmissionStatus("success")
+      setSubmissionMessage(settings.confirmationMessage)
+
+      // Reset status after 3 seconds
+      setTimeout(() => {
+        setSubmissionStatus("idle")
+      }, 3000)
+    }, 2000)
+  }
+
+  const exportResponses = () => {
+    // Simple CSV export
+    const headers = ["Timestamp", "Status", "User", ...formFields.map((f) => f.label)]
+    const rows = responses.map((response) => {
+      const row = [
+        new Date(response.timestamp).toLocaleString(),
+        response.status || "completed",
+        response.user || "anonymous",
+      ]
+      formFields.forEach((field) => {
+        row.push(response.data[field.id]?.toString() || "")
+      })
+      return row
+    })
+
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.setAttribute("href", url)
+    link.setAttribute("download", `${formTitle.replace(/\s+/g, "_")}_responses.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  // Get unique users who have submitted responses
+  const uniqueUsers = [...new Set(responses.map((r) => r.user).filter(Boolean))]
+
+  // Get completion rate
+  const completionRate =
+    responses.length > 0 ? (responses.filter((r) => r.status === "completed").length / responses.length) * 100 : 0
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      {/* Left sidebar - Field palette */}
+      <div className="lg:col-span-3 space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Add Questions</CardTitle>
+            <CardDescription>Drag and drop to add fields</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ElementPalette onAddElement={addField} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Form Settings</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button variant="ghost" className="w-full justify-start" onClick={() => setActiveTab("settings")}>
+              <Settings className="mr-2 h-4 w-4" /> Configure Settings
+            </Button>
+          </CardContent>
+        </Card>
+
+        {responses.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Submission Stats</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Total Submissions</span>
+                  <span className="text-sm font-medium">{responses.length}</span>
+                </div>
+                <Progress value={100} className="h-2" />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Completion Rate</span>
+                  <span className="text-sm font-medium">{completionRate.toFixed(0)}%</span>
+                </div>
+                <Progress value={completionRate} className="h-2" />
+              </div>
+
+              <div>
+                <div className="flex justify-between mb-1">
+                  <span className="text-sm font-medium">Unique Users</span>
+                  <span className="text-sm font-medium">{uniqueUsers.length}</span>
+                </div>
+                <Progress value={(uniqueUsers.length / responses.length) * 100} className="h-2" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Main content area */}
+      <div className="lg:col-span-6">
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <CardTitle>Form Builder</CardTitle>
+              <div className="flex space-x-2">
+                <Button
+                  variant={activeTab === "builder" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab("builder")}
+                >
+                  <Code className="mr-2 h-4 w-4" /> Build
+                </Button>
+                <Button
+                  variant={activeTab === "preview" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab("preview")}
+                  disabled={formFields.length === 0}
+                >
+                  <Eye className="mr-2 h-4 w-4" /> Preview
+                </Button>
+                <Button
+                  variant={activeTab === "responses" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setActiveTab("responses")}
+                  disabled={responses.length === 0}
+                >
+                  <BarChart2 className="mr-2 h-4 w-4" /> Responses
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as any)}>
+              <TabsContent value="builder" className="mt-0">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Form Title</Label>
+                    <Input
+                      value={formTitle}
+                      onChange={(e) => setFormTitle(e.target.value)}
+                      placeholder="Enter form title"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Form Description</Label>
+                    <Textarea
+                      value={formDescription}
+                      onChange={(e) => setFormDescription(e.target.value)}
+                      placeholder="Enter form description"
+                      rows={2}
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    {formFields.length === 0 ? (
+                      <div className="border border-dashed rounded-md p-8 text-center">
+                        <p className="text-muted-foreground mb-4">
+                          Your form is empty. Add elements from the palette to get started.
+                        </p>
+                        <Button onClick={() => addField("text")}>
+                          <Plus className="mr-2 h-4 w-4" /> Add First Question
+                        </Button>
+                      </div>
+                    ) : (
+                      formFields.map((field, index) => (
+                        <Card
+                          key={field.id}
+                          className={`${activeFieldId === field.id ? "border-primary" : ""} transition-colors`}
+                          draggable
+                          onDragStart={() => handleDragStart(index)}
+                          onDragOver={(e) => {
+                            e.preventDefault()
+                            handleDragOver(index)
+                          }}
+                          onDragEnd={handleDragEnd}
+                          onClick={() => setActiveFieldId(field.id)}
+                        >
+                          <CardHeader className="p-3 pb-0 flex flex-row items-center justify-between">
+                            <div className="flex items-center space-x-2 cursor-move">
+                              <GripVertical className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                {field.type.charAt(0).toUpperCase() + field.type.slice(1)}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                removeField(field.id)
+                              }}
+                            >
+                              <Trash className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </CardHeader>
+                          <CardContent className="p-4 pt-2">
+                            <Label>{field.label}</Label>
+                            {field.description && (
+                              <p className="text-sm text-muted-foreground mt-1">{field.description}</p>
+                            )}
+                            <div className="mt-2">
+                              <FormPreview
+                                field={field}
+                                value={currentResponse[field.id]}
+                                onChange={(value) => {}}
+                                disabled={true}
+                              />
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="preview" className="mt-0">
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <h1 className="text-2xl font-bold">{formTitle}</h1>
+                    {formDescription && <p className="text-muted-foreground">{formDescription}</p>}
+                  </div>
+
+                  {submissionStatus === "success" && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertTitle className="text-green-800">Success!</AlertTitle>
+                      <AlertDescription className="text-green-700">{submissionMessage}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {submissionStatus === "error" && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Error</AlertTitle>
+                      <AlertDescription>{submissionMessage}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  {submissionStatus === "submitting" && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm">Uploading form data...</span>
+                        <span className="text-sm">{uploadProgress}%</span>
+                      </div>
+                      <Progress value={uploadProgress} className="h-2" />
+                    </div>
+                  )}
+
+                  <div className="space-y-6">
+                    {formFields.map((field) => (
+                      <div key={field.id} className="space-y-2">
+                        <Label>
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </Label>
+                        {field.description && <p className="text-sm text-muted-foreground">{field.description}</p>}
+                        <FormPreview
+                          field={field}
+                          value={currentResponse[field.id]}
+                          onChange={(value) => handleResponseChange(field.id, value)}
+                          disabled={submissionStatus === "submitting"}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {isPublished ? (
+                    <div className="mt-6 space-y-4">
+                      <div className="p-4 bg-muted rounded-lg">
+                        <h3 className="font-medium">Form Published!</h3>
+                        <p className="text-sm text-muted-foreground mt-1">Share this link with respondents:</p>
+                        <div className="flex items-center space-x-2 mt-2">
+                          <Input value={formUrl} readOnly />
+                          <Button variant="secondary" onClick={copyToClipboard}>
+                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                          </Button>
+                        </div>
+                      </div>
+                      <Button onClick={simulateUpload} className="w-full" disabled={submissionStatus === "submitting"}>
+                        {submissionStatus === "submitting" ? "Submitting..." : "Submit Response"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button onClick={publishForm} className="w-full" disabled={formFields.length === 0}>
+                      Publish Form
+                    </Button>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="responses" className="mt-0">
+                <div className="space-y-6">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-xl font-semibold">Responses</h2>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <p className="text-muted-foreground">{responses.length} total submissions</p>
+                        <Badge variant="outline" className="ml-2">
+                          {uniqueUsers.length} unique users
+                        </Badge>
+                      </div>
+                    </div>
+                    <Button variant="outline" onClick={exportResponses}>
+                      <Download className="mr-2 h-4 w-4" /> Export
+                    </Button>
+                  </div>
+
+                  <ResponseStats responses={responses} formFields={formFields} />
+
+                  <ResponseTable responses={responses} formFields={formFields} />
+                </div>
+              </TabsContent>
+
+              <TabsContent value="settings" className="mt-0">
+                <FormSettingsComponent settings={settings} onUpdateSettings={setSettings} />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Right sidebar - Field configuration */}
+      <div className="lg:col-span-3">
+        {activeFieldId && formFields.some((f) => f.id === activeFieldId) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Field Settings</CardTitle>
+              <CardDescription>Configure the selected field</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="label">Label</Label>
+                  <Input
+                    id="label"
+                    value={formFields.find((f) => f.id === activeFieldId)?.label || ""}
+                    onChange={(e) => updateField(activeFieldId, { label: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (optional)</Label>
+                  <Input
+                    id="description"
+                    value={formFields.find((f) => f.id === activeFieldId)?.description || ""}
+                    onChange={(e) => updateField(activeFieldId, { description: e.target.value })}
+                    placeholder="Add help text for this question"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`required-${activeFieldId}`}
+                    checked={formFields.find((f) => f.id === activeFieldId)?.required || false}
+                    onChange={(e) => updateField(activeFieldId, { required: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor={`required-${activeFieldId}`}>Required</Label>
+                </div>
+
+                {["date", "text", "email", "number", "paragraph"].includes(
+                  formFields.find((f) => f.id === activeFieldId)?.type || "",
+                ) && (
+                  <div className="space-y-2">
+                    <Label htmlFor="placeholder">Placeholder (optional)</Label>
+                    <Input
+                      id="placeholder"
+                      value={formFields.find((f) => f.id === activeFieldId)?.placeholder || ""}
+                      onChange={(e) => updateField(activeFieldId, { placeholder: e.target.value })}
+                      placeholder="Enter placeholder text"
+                    />
+                  </div>
+                )}
+
+                {formFields.find((f) => f.id === activeFieldId)?.type === "dropdown" && (
+                  <div className="space-y-2">
+                    <Label>Options (one per line)</Label>
+                    <Textarea
+                      value={formFields.find((f) => f.id === activeFieldId)?.options?.join("\n") || ""}
+                      onChange={(e) => updateField(activeFieldId, { options: e.target.value.split("\n") })}
+                      placeholder={`Option 1\nOption 2\nOption 3`}
+                      rows={4}
+                    />
+                  </div>
+                )}
+
+                {formFields.find((f) => f.id === activeFieldId)?.type === "rating" && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Minimum</Label>
+                      <Input
+                        type="number"
+                        value={formFields.find((f) => f.id === activeFieldId)?.min || 1}
+                        onChange={(e) => updateField(activeFieldId, { min: Number.parseInt(e.target.value) || 1 })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Maximum</Label>
+                      <Input
+                        type="number"
+                        value={formFields.find((f) => f.id === activeFieldId)?.max || 5}
+                        onChange={(e) => updateField(activeFieldId, { max: Number.parseInt(e.target.value) || 5 })}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {responses.length > 0 && (
+          <Card className="mt-4">
+            <CardHeader>
+              <CardTitle className="text-lg">Recent Submissions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {responses
+                  .slice(-3)
+                  .reverse()
+                  .map((response) => (
+                    <div key={response.id} className="border rounded-md p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium">{response.user || "Anonymous"}</span>
+                        <Badge variant={response.status === "completed" ? "default" : "outline"}>
+                          {response.status || "completed"}
+                        </Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(response.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  )
+}
